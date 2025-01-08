@@ -3,8 +3,8 @@ import db from "../../database/pg.sql.js";
 const router = Router();
 
 router.get("/users/:name", async (req, res) => {
-  // const { name } = req.params;
-
+  const { name } = req.params;
+  console.log("name", name);
   const result = await db`SELECT * from users`;
 
   res.send(result);
