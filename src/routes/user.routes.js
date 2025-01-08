@@ -3,9 +3,9 @@ import db from "../../database/pg.sql.js";
 const router = Router();
 
 router.get("/users/:name", async (req, res) => {
-  const { name } = req.params;
+  // const { name } = req.params;
 
-  const result = await db`SELECT * from users where name like '%${name}%'`;
+  const result = await db`SELECT * from users`;
 
   res.send(result);
 });
