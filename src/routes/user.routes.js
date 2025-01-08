@@ -10,4 +10,8 @@ router.get("/users/:name", async (req, res) => {
   res.send(result);
 });
 
+router.get("/tournament", async (req, res) => {
+  res.send("Tournament created");
+});
+
 export default router;
