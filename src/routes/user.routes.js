@@ -2,9 +2,11 @@ import { Router } from "express";
 import db from "../../database/pg.sql.js";
 const router = Router();
 
-router.get("/users/:konamiid", async (req, res) => {
-  const { konamiid } = req.params;
-  const result = await db`SELECT * FROM users WHERE konamiid= ${konamiid};`;
+router.get("/users/:name", async (req, res) => {
+  const { name } = req.params;
+  const result = await db`SELECT * FROM users WHERE name like ${
+    "%" + name + "%"
+  }`;
   res.send(result);
 });
 
