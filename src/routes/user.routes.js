@@ -4,10 +4,13 @@ const router = Router();
 
 router.get("/users/:name", async (req, res) => {
   const { name } = req.params;
-  console.log("name", name);
-  const result = await db`SELECT * from users`;
+  // console.log("name", name);
+  if (name) {
+    const result =
+      await db`SELECT * from users where name like '%${name.toString()}%'`;
 
-  res.send(result);
+    res.send(result);
+  }
 });
 
 router.get("/tournament", async (req, res) => {
