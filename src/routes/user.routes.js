@@ -21,21 +21,25 @@ VALUES (${name});`;
   res.send("tournmanet created");
 });
 
-router.post("/createListPlayers", async (req, res) => {
-  const { participants } = req.body;
-  if (!Array.isArray(participants) || participants.length === 0) {
-    return res.status(400).json({
-      message: "La lista de participantes es inválida o está vacía.",
-    });
-  }
-  const values = participants
-    .map(
-      ({ konamiid, name, idtournament }) =>
-        `(${idtournament}, '${konamiid}', '${name}')`
-    )
-    .join(", ");
-  console.log(values);
+router.post("/addPlayerInTournament", async (req, res) => {
+  const { konamiid, name, idtournament } = req.body;
+  const result = await db`
+  INSERT INTO "listplayers"(name, konamiid, idtournament)
+  VALUES (${name}, ${konamiid}, ${idtournament})
+`;
+  console.log("result", result);
   res.send("probando");
+});
+
+router.put("/upgradeResultPlayerInTournament", async (req, res) => {
+  const { konamiid, idtournament, victory, defeat, draw } = req.body;
+  const result = await db`
+  UPDATE "listplayers"
+      SET victory = ${victory}, defeat = ${defeat}, draw = ${draw}
+      WHERE konamiid = ${konamiid} AND idtournament = ${idtournament}
+`;
+  console.log(result);
+  res.send("Update values");
 });
 
 export default router;
