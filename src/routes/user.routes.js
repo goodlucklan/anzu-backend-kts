@@ -23,22 +23,27 @@ VALUES (${name});`;
 
 router.post("/addPlayerInTournament", async (req, res) => {
   const { konamiid, name, idtournament } = req.body;
-  const result = await db`
+  await db`
   INSERT INTO "listplayers"(name, konamiid, idtournament)
   VALUES (${name}, ${konamiid}, ${idtournament})
 `;
-  console.log("result", result);
+  const count =
+    await db`SELECT COUNT(*) FROM listplayers WHERE idtournament = ${idtournament}`;
+
+  await db`UPDATE "Tournament" SET participants = ${parseInt(
+    count[0].count,
+    10
+  )} WHERE id = ${idtournament}`;
   res.send("probando");
 });
 
 router.put("/upgradeResultPlayerInTournament", async (req, res) => {
   const { konamiid, idtournament, victory, defeat, draw } = req.body;
-  const result = await db`
+  await db`
   UPDATE "listplayers"
       SET victory = ${victory}, defeat = ${defeat}, draw = ${draw}
       WHERE konamiid = ${konamiid} AND idtournament = ${idtournament}
 `;
-  console.log(result);
   res.send("Update values");
 });
 
