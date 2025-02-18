@@ -4,10 +4,11 @@ const router = Router();
 
 router.get("/users/:name", async (req, res) => {
   const { name } = req.params;
-  const result = await db`SELECT * FROM users WHERE name like ${
-    "%" + name + "%"
-  }`;
-  res.send(result);
+  const result = await db.query(
+    "SELECT * FROM users WHERE name ILIKE $1",
+    [`%${name}%`] // Use parameterized query to avoid SQL injection
+  );
+  res.send(result.rows);
 });
 
 router.get("/tournament", async (req, res) => {
