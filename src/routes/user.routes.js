@@ -18,7 +18,8 @@ router.get("/tournament", async (req, res) => {
 router.post("/createTournament", async (req, res) => {
   const { name } = req.body;
   await db`INSERT INTO "Tournament"(name)
-VALUES (${name});`;
+VALUES ($1)`,
+    [name];
   res.send("tournmanet created");
 });
 
