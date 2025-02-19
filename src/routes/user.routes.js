@@ -23,19 +23,53 @@ VALUES (${name});`;
 });
 
 router.post("/addPlayerInTournament", async (req, res) => {
-  const { konamiid, name, idtournament } = req.body;
-  await db`
-  INSERT INTO "listplayers"(name, konamiid, idtournament)
-  VALUES (${name}, ${konamiid}, ${idtournament})
-`;
-  const count =
-    await db`SELECT COUNT(*) FROM listplayers WHERE idtournament = ${idtournament}`;
+  try {
+    const { konamiid, name, idtournament } = req.body;
 
-  await db`UPDATE "Tournament" SET participants = ${parseInt(
-    count[0].count,
-    10
-  )} WHERE id = ${idtournament}`;
-  res.send("probando");
+    // Obtener información del torneo
+    const tournamentResult = await db.query(
+      `SELECT * FROM "Tournament" WHERE id = $1`,
+      [idtournament]
+    );
+
+    if (tournamentResult.rows.length === 0) {
+      return res.status(404).send("Torneo no encontrado");
+    }
+
+    const { participants, maxPlayers } = tournamentResult.rows[0];
+    const maxPlayersNumber = parseInt(maxPlayers, 10); // Convertir maxPlayers de VARCHAR a número
+
+    if (participants >= maxPlayersNumber) {
+      return res
+        .status(400)
+        .send("El torneo ya alcanzó el número máximo de jugadores");
+    }
+
+    // Insertar jugador en el torneo
+    await db.query(
+      `INSERT INTO "listplayers" (name, konamiid, idtournament) VALUES ($1, $2, $3)`,
+      [name, konamiid, idtournament]
+    );
+
+    // Obtener el número de participantes actualizado
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM listplayers WHERE idtournament = $1`,
+      [idtournament]
+    );
+
+    const count = parseInt(countResult.rows[0].count, 10);
+
+    // Actualizar el número de participantes en la tabla "Tournament"
+    await db.query(`UPDATE "Tournament" SET participants = $1 WHERE id = $2`, [
+      count,
+      idtournament,
+    ]);
+
+    res.send("Jugador agregado correctamente");
+  } catch (error) {
+    console.error("Error al agregar jugador:", error);
+    res.status(500).send("Error en el servidor");
+  }
 });
 
 router.put("/upgradeResultPlayerInTournament", async (req, res) => {
