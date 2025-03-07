@@ -1,7 +1,9 @@
 import { Router } from "express";
+import session from "express-session";
 import db from "../../database/pg.sql.js";
 const router = Router();
 
+/** Users */
 router.get("/users/:name", async (req, res) => {
   const { name } = req.params;
   const result = await db.query(
@@ -11,16 +13,35 @@ router.get("/users/:name", async (req, res) => {
   res.send(result.rows);
 });
 
+router.post("/users/add", async (req, res) => {
+  console.log("req funciona add");
+  try {
+    const { name, konamiid, email, password } = req.body;
+    const result = await db.query(
+      `INSERT INTO "users"(name, konamiid, email, password) VALUES ($1, $2, $3, $4)`,
+      [name, konamiid, email, password]
+    );
+    res.send(result.rows);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error en el servidor");
+  }
+});
+
+router.post("/auth", async (req, res) => {
+  const { email, password } = req.body;
+});
+
 router.get("/tournament", async (req, res) => {
   res.send("Tournament created");
 });
 
 router.post("/createTournament", async (req, res) => {
   const { name } = req.body;
-  await db`INSERT INTO "Tournament"(name)
-VALUES ($1)`,
-    [name];
-  res.send("tournmanet created");
+  const result = await db.query(`INSERT INTO "Tournament"(name) VALUES ($1)`, [
+    name,
+  ]);
+  res.send(result.rows);
 });
 
 router.post("/addPlayerInTournament", async (req, res) => {

@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import userRoutes from "./routes/user.routes.js";
 import dotenv from "dotenv";
+import session from "express-session";
 
 dotenv.config();
 const app = express();
@@ -11,6 +12,13 @@ app.use(
   cors({
     origin: "http://localhost:5173", // Permitir solo tu frontend local
     methods: ["GET", "POST", "PUT", "DELETE"], // Métodos permitidos
+  })
+);
+app.use(
+  session({
+    secret: "secret",
+    resave: true,
+    saveUninitialized: true,
   })
 );
 
