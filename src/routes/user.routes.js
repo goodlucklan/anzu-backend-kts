@@ -14,7 +14,6 @@ router.get("/users/:name", async (req, res) => {
 });
 
 router.post("/users/add", async (req, res) => {
-  console.log("req funciona add");
   try {
     const { name, konamiid, email, password } = req.body;
     const result = await db.query(
@@ -23,7 +22,6 @@ router.post("/users/add", async (req, res) => {
     );
     res.send(result.rows);
   } catch (error) {
-    console.log(error);
     res.status(500).send("Error en el servidor");
   }
 });
