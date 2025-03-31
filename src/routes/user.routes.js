@@ -1,5 +1,4 @@
 import { Router } from "express";
-import session from "express-session";
 import bcrypt from "bcrypt";
 import db from "../../database/pg.sql.js";
 const router = Router();
@@ -46,6 +45,7 @@ router.post("/auth", async (req, res) => {
     id: user.id,
     name: user.name,
     email: user.email,
+    konamiid: user.konamiid,
   };
 
   res.json({ message: "Login exitoso", user: req.session.user });
