@@ -66,6 +66,20 @@ router.post("/createTournament", async (req, res) => {
   res.send(result.rows);
 });
 
+router.get("/getTournaments", async (req, res) => {
+  try {
+    const tournamentResult = await db.query(`SELECT * FROM "Tournament"`);
+    res.send({
+      message: "Torneos encontrados",
+      data: tournamentResult.rows,
+    });
+    return tournamentResult.rows;
+  } catch (error) {
+    console.error("Error al buscar torneos:", error);
+    res.status(500).send("Error en el servidor");
+  }
+});
+
 router.post("/addPlayerInTournament", async (req, res) => {
   try {
     const { konamiid, name, idtournament } = req.body;
