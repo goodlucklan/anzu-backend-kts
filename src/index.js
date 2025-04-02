@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import userRoutes from "./routes/user.routes.js";
+import tournamentRoutes from "./routes/tournament.routes.js";
 import dotenv from "dotenv";
 import session from "express-session";
 import pgSession from "connect-pg-simple"; // Importa la función
@@ -39,7 +40,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Rutas deben ir después de configurar CORS
-app.use(userRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/tournament", tournamentRoutes);
 
 app.listen(process.env.PORT, () => {
   console.log(`SERVER IS RUNNING IN PORT ${process.env.PORT}`);
