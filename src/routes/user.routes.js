@@ -13,20 +13,56 @@ router.get("/users/:name", async (req, res) => {
   res.send(result.rows);
 });
 
-router.post("/users/add", async (req, res) => {
+router.post("/add", async (req, res) => {
   try {
     const { name, konamiid, email, password } = req.body;
-    console.log("add", req.body);
+    if (!name || !konamiid || !email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Todos los campos son obligatorios" });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res
+        .status(400)
+        .json({ message: "Formato de correo electrónico inválido" });
+    }
+    const emailCheck = await db.query(
+      `SELECT id FROM "users" WHERE email = $1`,
+      [email]
+    );
+    if (emailCheck.rowCount > 0) {
+      return res
+        .status(400)
+        .json({ message: "El correo electrónico ya está registrado" });
+    }
+
+    const konamiIdCheck = await db.query(
+      `SELECT id FROM "users" WHERE konamiid = $1`,
+      [konamiid]
+    );
+    if (konamiIdCheck.rowCount > 0) {
+      return res
+        .status(400)
+        .json({ message: "El Konami ID ya está registrado" });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
       `INSERT INTO "users"(name, konamiid, email, password, create_at) 
        VALUES ($1, $2, $3, $4, NOW())`,
       [name, konamiid, email, hashedPassword]
     );
-    res.send(result);
+    // Verificar si la inserción fue exitosa
+    if (result.rowCount === 1) {
+      return res.status(201).json({
+        message: "Usuario registrado satisfactoriamente",
+        user: result.rows[0], // Devolver los datos del usuario registrado
+      });
+    } else {
+      return res.status(500).json({ message: "Error al registrar el usuario" });
+    }
   } catch (error) {
-    console.error("Error en el registro:", error);
-    res.status(500).send("Error en el servidor");
+    res.status(500).send("Error en el servidor", error);
   }
 });
 
