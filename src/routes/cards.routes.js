@@ -5,8 +5,6 @@ const router = Router();
 
 router.get("/getCards", async (req, res) => {
   try {
-    console.log("Obteniendo datos de YGOPRODeck...");
-
     const cards = data;
     console.log(`Se recibieron ${cards.length} cartas.`);
     for (const card of cards) {
