@@ -8,7 +8,10 @@ const sql = new pg.Pool({
   username: PGUSER,
   password: PGPASSWORD,
   port: 5432,
-  ssl: false,
+  // ssl: false, PARA LOCAL
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 export default sql;
