@@ -46,28 +46,28 @@ router.post("/register", async (req, res) => {
 
     await db.query("BEGIN");
 
-    // // Verificar si el usuario, email o DNI ya existen
-    // const existingUser = await db.query(
-    //   `
-    //   SELECT
-    //     CASE
-    //       WHEN username = $1 THEN 'username'
-    //       WHEN email = $2 THEN 'email'
-    //       WHEN dni = $3 THEN 'dni'
-    //     END as conflict_field
-    //   FROM users
-    //   WHERE username = $1 OR email = $2 OR dni = $3
-    //   LIMIT 1
-    //   `,
-    //   [username, email, dni]
-    // );
+    // Verificar si el usuario, email o DNI ya existen
+    const existingUser = await db.query(
+      `
+      SELECT 
+        CASE 
+          WHEN username = $1 THEN 'username'
+          WHEN email = $2 THEN 'email'
+          WHEN dni = $3 THEN 'dni'
+        END as conflict_field
+      FROM users
+      WHERE username = $1 OR email = $2 OR dni = $3
+      LIMIT 1
+      `,
+      [username, email, dni]
+    );
 
-    // if (existingUser.rows.length > 0) {
-    //   await db.query("ROLLBACK");
-    //   return res.status(409).json({
-    //     error: `El ${existingUser.rows[0].conflict_field} ya está registrado`,
-    //   });
-    // }
+    if (existingUser.rows.length > 0) {
+      await db.query("ROLLBACK");
+      return res.status(409).json({
+        error: `El ${existingUser.rows[0].conflict_field} ya está registrado`,
+      });
+    }
 
     // Encriptar contraseña
     const saltRounds = 10;
