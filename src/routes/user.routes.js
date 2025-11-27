@@ -2,132 +2,356 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import db from "../../database/pg.sql.js";
 import jwt from "jsonwebtoken";
+import { JWT_CONFIG } from "../../src/routes/config/jwt.config.js";
+
 const router = Router();
 
-/** Users */
-router.get("/users/:name", async (req, res) => {
-  const { name } = req.params;
-  const result = await db.query("SELECT * FROM users WHERE name ILIKE $1", [
-    `%${name}%`,
-  ]);
-  res.send(result.rows);
-});
-
-router.post("/add", async (req, res) => {
+// ========== REGISTRO DE USUARIO ==========
+router.post("/register", async (req, res) => {
   try {
-    const { name, konamiid, email, password } = req.body;
-    if (!name || !konamiid || !email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Todos los campos son obligatorios" });
-    }
+    const { username, password, email, dni, user_type } = req.body;
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res
-        .status(400)
-        .json({ message: "Formato de correo electrónico inválido" });
-    }
-    const emailCheck = await db.query(
-      `SELECT id FROM "users" WHERE email = $1`,
-      [email]
-    );
-    if (emailCheck.rowCount > 0) {
-      return res
-        .status(400)
-        .json({ message: "El correo electrónico ya está registrado" });
-    }
-
-    const konamiIdCheck = await db.query(
-      `SELECT id FROM "users" WHERE konamiid = $1`,
-      [konamiid]
-    );
-    if (konamiIdCheck.rowCount > 0) {
-      return res
-        .status(400)
-        .json({ message: "El Konami ID ya está registrado" });
-    }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await db.query(
-      `INSERT INTO "users"(name, konamiid, email, password, create_at) 
-       VALUES ($1, $2, $3, $4, NOW())`,
-      [name, konamiid, email, hashedPassword]
-    );
-    if (result.rowCount === 1) {
-      return res.status(201).json({
-        message: "Usuario registrado satisfactoriamente",
-        user: result.rows[0],
+    // Validaciones básicas
+    if (!username || !password || !email || !dni) {
+      return res.status(400).json({
+        error: "Todos los campos son requeridos",
+        required: ["username", "password", "email", "dni"],
       });
-    } else {
-      return res.status(500).json({ message: "Error al registrar el usuario" });
     }
+
+    // Validar tipo de usuario
+    if (user_type && !["cliente", "vendedor"].includes(user_type)) {
+      return res.status(400).json({
+        error: "Tipo de usuario inválido",
+        allowed: ["cliente", "vendedor"],
+      });
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        error: "Formato de email inválido",
+      });
+    }
+
+    // Validar longitud de contraseña
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "La contraseña debe tener al menos 6 caracteres",
+      });
+    }
+
+    console.log(`📝 Intentando registrar usuario: ${username}`);
+
+    await db.query("BEGIN");
+
+    // // Verificar si el usuario, email o DNI ya existen
+    // const existingUser = await db.query(
+    //   `
+    //   SELECT
+    //     CASE
+    //       WHEN username = $1 THEN 'username'
+    //       WHEN email = $2 THEN 'email'
+    //       WHEN dni = $3 THEN 'dni'
+    //     END as conflict_field
+    //   FROM users
+    //   WHERE username = $1 OR email = $2 OR dni = $3
+    //   LIMIT 1
+    //   `,
+    //   [username, email, dni]
+    // );
+
+    // if (existingUser.rows.length > 0) {
+    //   await db.query("ROLLBACK");
+    //   return res.status(409).json({
+    //     error: `El ${existingUser.rows[0].conflict_field} ya está registrado`,
+    //   });
+    // }
+
+    // Encriptar contraseña
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    // Insertar usuario
+    const result = await db.query(
+      `
+      INSERT INTO users (username, password_hash, email, dni, user_type)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, username, email, dni, user_type, created_at
+      `,
+      [username, password_hash, email, dni, user_type || "cliente"]
+    );
+
+    const newUser = result.rows[0];
+
+    // Asignar rol por defecto (cliente)
+    await db.query(
+      `
+      INSERT INTO user_roles (user_id, role)
+      VALUES ($1, $2)
+      `,
+      [newUser.id, user_type || "cliente"]
+    );
+
+    await db.query("COMMIT");
+
+    // Generar token JWT
+    const token = jwt.sign(
+      {
+        id: newUser.id,
+        username: newUser.username,
+        user_type: newUser.user_type,
+      },
+      JWT_CONFIG.secret,
+      { expiresIn: JWT_CONFIG.expiresIn }
+    );
+
+    console.log(`✅ Usuario registrado exitosamente: ${username}`);
+
+    res.status(201).json({
+      message: "Usuario registrado exitosamente",
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        dni: newUser.dni,
+        user_type: newUser.user_type,
+        created_at: newUser.created_at,
+      },
+      token,
+    });
   } catch (error) {
-    res.status(500).send("Error en el servidor", error);
+    await db.query("ROLLBACK");
+    console.error("❌ Error al registrar usuario:", error);
+    res.status(500).json({
+      error: "Error en el servidor",
+      message: error.message,
+    });
   }
 });
 
-router.post("/auth", async (req, res) => {
+// ========== LOGIN DE USUARIO ==========
+router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
-    const result = await db.query(`SELECT * FROM "users" WHERE email = $1`, [
-      email,
-    ]);
+    // Validaciones básicas
+    if (!username || !password) {
+      return res.status(400).json({
+        error: "Usuario y contraseña son requeridos",
+      });
+    }
+
+    console.log(`🔐 Intento de login: ${username}`);
+
+    // Buscar usuario (puede usar username o email)
+    const result = await db.query(
+      `
+      SELECT id, username, password_hash, email, dni, user_type, is_active
+      FROM users
+      WHERE username = $1 OR email = $1
+      `,
+      [username]
+    );
+
     if (result.rows.length === 0) {
-      return res.status(401).json({ message: "Usuario no encontrado" });
+      return res.status(401).json({
+        error: "Credenciales inválidas",
+      });
     }
 
     const user = result.rows[0];
 
+    // Verificar si el usuario está activo
     if (!user.is_active) {
-      return res.status(403).json({ message: "Usuario no está activo" });
-    }
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) {
-      return res.status(401).json({ message: "Contraseña incorrecta" });
+      return res.status(403).json({
+        error: "Usuario desactivado. Contacta al administrador",
+      });
     }
 
-    // Generar un JWT
+    // Verificar contraseña
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        error: "Credenciales inválidas",
+      });
+    }
+
+    // Obtener roles del usuario
+    const rolesResult = await db.query(
+      `
+      SELECT role FROM user_roles WHERE user_id = $1
+      `,
+      [user.id]
+    );
+
+    const roles = rolesResult.rows.map((row) => row.role);
+
+    // Actualizar última conexión
+    await db.query(
+      `
+      UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = $1
+      `,
+      [user.id]
+    );
+
+    // Generar token JWT
     const token = jwt.sign(
       {
         id: user.id,
-        name: user.name,
-        email: user.email,
-        konamiid: user.konamiid,
+        username: user.username,
+        user_type: user.user_type,
+        roles,
       },
-      process.env.JWT_SECRET || "jwt_secret",
-      { expiresIn: "1d" }
+      JWT_CONFIG.secret,
+      { expiresIn: JWT_CONFIG.expiresIn }
     );
 
-    res.json({ message: "Login exitoso", token });
+    console.log(`✅ Login exitoso: ${username}`);
+
+    res.json({
+      message: "Login exitoso",
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        dni: user.dni,
+        user_type: user.user_type,
+        roles,
+      },
+      token,
+    });
   } catch (error) {
-    console.error("Error en la autenticación:", error);
-    res.status(500).json({ message: "Error en el servidor" });
+    console.error("❌ Error al hacer login:", error);
+    res.status(500).json({
+      error: "Error en el servidor",
+      message: error.message,
+    });
   }
 });
 
-router.post("/auth/logout", (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).send("Error al cerrar sesión");
-    }
-    res.json({ message: "Sesión cerrada correctamente" });
-  });
-});
-
-const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Token no proporcionado" });
-  }
-
-  const token = authHeader.split(" ")[1];
+// ========== VERIFICAR TOKEN ==========
+router.get("/verify", async (req, res) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "jwt_secret");
-    req.user = decoded;
-    next();
+    const token = req.headers.authorization?.replace("Bearer ", "");
+
+    if (!token) {
+      return res.status(401).json({
+        error: "Token no proporcionado",
+      });
+    }
+
+    // Verificar token
+    const decoded = jwt.verify(token, JWT_CONFIG.secret);
+
+    // Buscar usuario actualizado
+    const result = await db.query(
+      `
+      SELECT id, username, email, dni, user_type, is_active
+      FROM users
+      WHERE id = $1
+      `,
+      [decoded.id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].is_active) {
+      return res.status(401).json({
+        error: "Usuario no válido",
+      });
+    }
+
+    // Obtener roles actualizados
+    const rolesResult = await db.query(
+      `SELECT role FROM user_roles WHERE user_id = $1`,
+      [decoded.id]
+    );
+
+    const roles = rolesResult.rows.map((row) => row.role);
+
+    res.json({
+      valid: true,
+      user: {
+        ...result.rows[0],
+        roles,
+      },
+    });
   } catch (error) {
-    return res.status(401).json({ message: "Token inválido o expirado" });
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({
+        error: "Token inválido",
+      });
+    }
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        error: "Token expirado",
+      });
+    }
+
+    console.error("❌ Error al verificar token:", error);
+    res.status(500).json({
+      error: "Error en el servidor",
+      message: error.message,
+    });
   }
-};
+});
+
+// ========== CAMBIAR TIPO DE USUARIO ==========
+router.post("/upgrade-to-seller", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+
+    if (!token) {
+      return res.status(401).json({
+        error: "Token no proporcionado",
+      });
+    }
+
+    const decoded = jwt.verify(token, JWT_CONFIG.secret);
+
+    await db.query("BEGIN");
+
+    // Verificar que el usuario no sea ya vendedor
+    const checkRole = await db.query(
+      `SELECT 1 FROM user_roles WHERE user_id = $1 AND role = 'vendedor'`,
+      [decoded.id]
+    );
+
+    if (checkRole.rows.length > 0) {
+      await db.query("ROLLBACK");
+      return res.status(400).json({
+        error: "El usuario ya es vendedor",
+      });
+    }
+
+    // Agregar rol de vendedor
+    await db.query(
+      `INSERT INTO user_roles (user_id, role) VALUES ($1, 'vendedor')`,
+      [decoded.id]
+    );
+
+    // Si quieres actualizar también user_type en la tabla users
+    await db.query(
+      `UPDATE users SET user_type = 'vendedor', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [decoded.id]
+    );
+
+    await db.query("COMMIT");
+
+    console.log(`✅ Usuario ${decoded.username} ahora es vendedor`);
+
+    res.json({
+      message: "Usuario actualizado a vendedor exitosamente",
+    });
+  } catch (error) {
+    await db.query("ROLLBACK");
+    console.error("❌ Error al actualizar usuario:", error);
+    res.status(500).json({
+      error: "Error en el servidor",
+      message: error.message,
+    });
+  }
+});
 
 export default router;
