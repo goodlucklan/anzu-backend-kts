@@ -1,6 +1,6 @@
 import { Router } from "express";
 import db from "../../database/pg.sql.js";
-import { data } from "../../data.js";
+import axios from "axios";
 
 const router = Router();
 
@@ -8,8 +8,12 @@ router.get("/getCards", async (req, res) => {
   try {
     await db.query("BEGIN");
 
-    const cardsData = data;
-    console.log("📦 Cartas encontradas:", cardsData.length);
+    const dataApi = await axios.get(
+      "https://db.ygoprodeck.com/api/v7/cardinfo.php"
+    );
+    console.log("📦 Datos API recibidos:", dataApi.data);
+    const cardsData = dataApi.data;
+    console.log("📦 Cartas encontradas:", dataApi.data.length);
 
     // ========== 1. INSERTAR CARDS ==========
     const ids = [];
