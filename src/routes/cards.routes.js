@@ -4,6 +4,22 @@ import axios from "axios";
 
 const router = Router();
 
+router.get("/verifyCards", async (req, res) => {
+  try {
+    await db.query("BEGIN");
+    const cardCountResult = await db.query(`SELECT COUNT(*) FROM cards`);
+    res.send({
+      message: "Cantidad de cartas en la base de datos",
+      data: {
+        totalCards: parseInt(cardCountResult.rows[0].count, 10),
+      },
+    });
+  } catch (error) {
+    console.error("Error al verificar cartas:", error);
+    res.status(500).send("Error en el servidor");
+  }
+});
+
 router.get("/getCards", async (req, res) => {
   try {
     await db.query("BEGIN");
@@ -11,9 +27,8 @@ router.get("/getCards", async (req, res) => {
     const dataApi = await axios.get(
       "https://db.ygoprodeck.com/api/v7/cardinfo.php"
     );
-    console.log("📦 Datos API recibidos:", dataApi.data);
-    const cardsData = dataApi.data;
-    console.log("📦 Cartas encontradas:", dataApi.data.length);
+    const cardsData = dataApi.data.data;
+    console.log("📦 Cartas encontradas:", dataApi.data.data.length);
 
     // ========== 1. INSERTAR CARDS ==========
     const ids = [];
