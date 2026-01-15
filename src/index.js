@@ -3,6 +3,8 @@ import cors from "cors";
 import userRoutes from "./routes/user.routes.js";
 import tournamentRoutes from "./routes/tournament.routes.js";
 import cardsRoutes from "./routes/cards.routes.js";
+import sellerRoutes from "./routes/seller.routes.js";
+import inventoryRoutes from "./routes/inventory.routes.js";
 import dotenv from "dotenv";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
@@ -48,7 +50,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use("/api/users", userRoutes);
 app.use("/api/tournament", tournamentRoutes);
 app.use("/api/cards", cardsRoutes);
-
+app.use("/api/seller", sellerRoutes);
+app.use("/api/invetory", inventoryRoutes);
 server.listen(process.env.PORT || 3000, () => {
   console.log(`Server is running on port ${process.env.PORT || 3000}`);
 });
