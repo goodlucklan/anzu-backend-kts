@@ -2,37 +2,24 @@ import { Router } from "express";
 import db from "../../database/pg.sql.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { authMiddleware } from "./middleware/auth.middleware.js";
+import { validate } from "./middleware/validate.middleware.js";
+import {
+  sellerRegisterSchema,
+  sellerLoginSchema,
+  sellerUpdateSchema,
+  sellerChangePasswordSchema,
+} from "./schemas/seller.schemas.js";
+import { JWT_CONFIG } from "./config/jwt.config.js";
 
 const router = Router();
 
-// Configuración
-const JWT_SECRET =
-  process.env.JWT_SECRET || "tu_clave_secreta_cambiar_en_produccion";
-const JWT_EXPIRES_IN = "24h";
 const SALT_ROUNDS = 10;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_TIME = 15 * 60 * 1000; // 15 minutos en milisegundos
 
-// ========== MIDDLEWARE DE AUTENTICACIÓN ==========
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
-
-  if (!token) {
-    return res.status(401).json({ error: "Token no proporcionado" });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: "Token inválido o expirado" });
-    }
-    req.user = user;
-    next();
-  });
-};
-
 // ========== 1. REGISTRO ==========
-router.post("/vendedores/registro", async (req, res) => {
+router.post("/vendedores/registro", validate(sellerRegisterSchema), async (req, res) => {
   try {
     const {
       nombres,
@@ -46,20 +33,6 @@ router.post("/vendedores/registro", async (req, res) => {
       facebook,
       otro,
     } = req.body;
-
-    // Validaciones básicas
-    if (!nombres || !apellidos || !correo || !password || !dni) {
-      return res.status(400).json({
-        error: "Campos requeridos: nombres, apellidos, correo, password, dni",
-      });
-    }
-
-    // Validar contraseña
-    if (password.length < 8) {
-      return res.status(400).json({
-        error: "La contraseña debe tener al menos 8 caracteres",
-      });
-    }
 
     // Hash de la contraseña
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -96,8 +69,8 @@ router.post("/vendedores/registro", async (req, res) => {
         vendedor_id: vendedor.vendedor_id,
         correo: vendedor.correo,
       },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      JWT_CONFIG.secret,
+      { expiresIn: JWT_CONFIG.expiresIn }
     );
 
     res.status(201).json({
@@ -134,15 +107,9 @@ router.post("/vendedores/registro", async (req, res) => {
 });
 
 // ========== 2. LOGIN ==========
-router.post("/vendedores/login", async (req, res) => {
+router.post("/vendedores/login", validate(sellerLoginSchema), async (req, res) => {
   try {
     const { correo, password } = req.body;
-
-    if (!correo || !password) {
-      return res.status(400).json({
-        error: "Correo y contraseña son requeridos",
-      });
-    }
 
     // Buscar vendedor
     const result = await db.query(
@@ -230,8 +197,8 @@ router.post("/vendedores/login", async (req, res) => {
         vendedor_id: vendedor.vendedor_id,
         correo: vendedor.correo,
       },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      JWT_CONFIG.secret,
+      { expiresIn: JWT_CONFIG.expiresIn }
     );
 
     // No enviar el password_hash al cliente
@@ -254,7 +221,7 @@ router.post("/vendedores/login", async (req, res) => {
 });
 
 // ========== 3. OBTENER PERFIL (Requiere autenticación) ==========
-router.get("/vendedores/perfil", authenticateToken, async (req, res) => {
+router.get("/vendedores/perfil", authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT vendedor_id, nombres, apellidos, correo, dni, konami_id,
@@ -284,7 +251,7 @@ router.get("/vendedores/perfil", authenticateToken, async (req, res) => {
 });
 
 // ========== 4. ACTUALIZAR PERFIL (Requiere autenticación) ==========
-router.put("/vendedores/perfil", authenticateToken, async (req, res) => {
+router.put("/vendedores/perfil", authMiddleware, validate(sellerUpdateSchema), async (req, res) => {
   try {
     const {
       nombres,
@@ -336,22 +303,11 @@ router.put("/vendedores/perfil", authenticateToken, async (req, res) => {
 // ========== 5. CAMBIAR CONTRASEÑA (Requiere autenticación) ==========
 router.put(
   "/vendedores/cambiar-password",
-  authenticateToken,
+  authMiddleware,
+  validate(sellerChangePasswordSchema),
   async (req, res) => {
     try {
       const { password_actual, password_nuevo } = req.body;
-
-      if (!password_actual || !password_nuevo) {
-        return res.status(400).json({
-          error: "Se requiere la contraseña actual y la nueva",
-        });
-      }
-
-      if (password_nuevo.length < 8) {
-        return res.status(400).json({
-          error: "La nueva contraseña debe tener al menos 8 caracteres",
-        });
-      }
 
       // Obtener contraseña actual
       const result = await db.query(

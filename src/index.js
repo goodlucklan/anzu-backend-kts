@@ -10,6 +10,11 @@ import session from "express-session";
 import pgSession from "connect-pg-simple";
 import db from "../database/pg.sql.js";
 import http from "http";
+import {
+  generalLimiter,
+  loginLimiter,
+  registerLimiter,
+} from "./config/rateLimit.config.js";
 
 dotenv.config();
 
@@ -47,11 +52,30 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.use("/api/users", userRoutes);
+// ── Rate limiting ────────────────────────────────────────────────────────────
+app.use(generalLimiter); // aplica a todas las rutas
+
+// Limiters específicos para auth (más estrictos)
+app.use("/api/users/login",              loginLimiter);
+app.use("/api/users/register",           registerLimiter);
+app.use("/api/seller/vendedores/login",  loginLimiter);
+app.use("/api/seller/vendedores/registro", registerLimiter);
+
+// ── Rutas ────────────────────────────────────────────────────────────────────
+app.use("/api/users",     userRoutes);
 app.use("/api/tournament", tournamentRoutes);
-app.use("/api/cards", cardsRoutes);
-app.use("/api/seller", sellerRoutes);
-app.use("/api/invetory", inventoryRoutes);
+app.use("/api/cards",     cardsRoutes);
+app.use("/api/seller",    sellerRoutes);
+app.use("/api/invetory",  inventoryRoutes);
+
+// ── Manejador de errores global ──────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error("❌ Error no controlado:", err);
+  res.status(500).json({
+    error: "Error interno del servidor",
+  });
+});
+
 server.listen(process.env.PORT || 3000, () => {
   console.log(`Server is running on port ${process.env.PORT || 3000}`);
 });

@@ -2,45 +2,17 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import db from "../../database/pg.sql.js";
 import jwt from "jsonwebtoken";
-import { JWT_CONFIG } from "../../src/routes/config/jwt.config.js";
+import { JWT_CONFIG } from "./config/jwt.config.js";
+import { authMiddleware } from "./middleware/auth.middleware.js";
+import { validate } from "./middleware/validate.middleware.js";
+import { registerSchema, loginSchema } from "./schemas/user.schemas.js";
 
 const router = Router();
 
 // ========== REGISTRO DE USUARIO ==========
-router.post("/register", async (req, res) => {
+router.post("/register", validate(registerSchema), async (req, res) => {
   try {
     const { username, password, email, dni, user_type } = req.body;
-
-    // Validaciones básicas
-    if (!username || !password || !email || !dni) {
-      return res.status(400).json({
-        error: "Todos los campos son requeridos",
-        required: ["username", "password", "email", "dni"],
-      });
-    }
-
-    // Validar tipo de usuario
-    if (user_type && !["cliente", "vendedor"].includes(user_type)) {
-      return res.status(400).json({
-        error: "Tipo de usuario inválido",
-        allowed: ["cliente", "vendedor"],
-      });
-    }
-
-    // Validar formato de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        error: "Formato de email inválido",
-      });
-    }
-
-    // Validar longitud de contraseña
-    if (password.length < 6) {
-      return res.status(400).json({
-        error: "La contraseña debe tener al menos 6 caracteres",
-      });
-    }
 
     console.log(`📝 Intentando registrar usuario: ${username}`);
 
@@ -132,16 +104,9 @@ router.post("/register", async (req, res) => {
 });
 
 // ========== LOGIN DE USUARIO ==========
-router.post("/login", async (req, res) => {
+router.post("/login", validate(loginSchema), async (req, res) => {
   try {
     const { username, password } = req.body;
-
-    // Validaciones básicas
-    if (!username || !password) {
-      return res.status(400).json({
-        error: "Usuario y contraseña son requeridos",
-      });
-    }
 
     console.log(`🔐 Intento de login: ${username}`);
 
@@ -233,27 +198,16 @@ router.post("/login", async (req, res) => {
 });
 
 // ========== VERIFICAR TOKEN ==========
-router.get("/verify", async (req, res) => {
+router.get("/verify", authMiddleware, async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-
-    if (!token) {
-      return res.status(401).json({
-        error: "Token no proporcionado",
-      });
-    }
-
-    // Verificar token
-    const decoded = jwt.verify(token, JWT_CONFIG.secret);
-
-    // Buscar usuario actualizado
+    // req.user ya fue verificado por authMiddleware
     const result = await db.query(
       `
       SELECT id, username, email, dni, user_type, is_active
       FROM users
       WHERE id = $1
       `,
-      [decoded.id]
+      [req.user.id]
     );
 
     if (result.rows.length === 0 || !result.rows[0].is_active) {
@@ -262,10 +216,9 @@ router.get("/verify", async (req, res) => {
       });
     }
 
-    // Obtener roles actualizados
     const rolesResult = await db.query(
       `SELECT role FROM user_roles WHERE user_id = $1`,
-      [decoded.id]
+      [req.user.id]
     );
 
     const roles = rolesResult.rows.map((row) => row.role);
@@ -278,17 +231,6 @@ router.get("/verify", async (req, res) => {
       },
     });
   } catch (error) {
-    if (error.name === "JsonWebTokenError") {
-      return res.status(401).json({
-        error: "Token inválido",
-      });
-    }
-    if (error.name === "TokenExpiredError") {
-      return res.status(401).json({
-        error: "Token expirado",
-      });
-    }
-
     console.error("❌ Error al verificar token:", error);
     res.status(500).json({
       error: "Error en el servidor",
@@ -298,24 +240,15 @@ router.get("/verify", async (req, res) => {
 });
 
 // ========== CAMBIAR TIPO DE USUARIO ==========
-router.post("/upgrade-to-seller", async (req, res) => {
+router.post("/upgrade-to-seller", authMiddleware, async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-
-    if (!token) {
-      return res.status(401).json({
-        error: "Token no proporcionado",
-      });
-    }
-
-    const decoded = jwt.verify(token, JWT_CONFIG.secret);
-
+    // req.user ya fue verificado por authMiddleware
     await db.query("BEGIN");
 
     // Verificar que el usuario no sea ya vendedor
     const checkRole = await db.query(
       `SELECT 1 FROM user_roles WHERE user_id = $1 AND role = 'vendedor'`,
-      [decoded.id]
+      [req.user.id]
     );
 
     if (checkRole.rows.length > 0) {
@@ -328,18 +261,17 @@ router.post("/upgrade-to-seller", async (req, res) => {
     // Agregar rol de vendedor
     await db.query(
       `INSERT INTO user_roles (user_id, role) VALUES ($1, 'vendedor')`,
-      [decoded.id]
+      [req.user.id]
     );
 
-    // Si quieres actualizar también user_type en la tabla users
     await db.query(
       `UPDATE users SET user_type = 'vendedor', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-      [decoded.id]
+      [req.user.id]
     );
 
     await db.query("COMMIT");
 
-    console.log(`✅ Usuario ${decoded.username} ahora es vendedor`);
+    console.log(`✅ Usuario ${req.user.username} ahora es vendedor`);
 
     res.json({
       message: "Usuario actualizado a vendedor exitosamente",

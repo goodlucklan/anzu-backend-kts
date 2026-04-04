@@ -1,40 +1,20 @@
 import { Router } from "express";
 import db from "../../database/pg.sql.js";
-import jwt from "jsonwebtoken";
+import { authMiddleware } from "./middleware/auth.middleware.js";
+import { validate } from "./middleware/validate.middleware.js";
+import {
+  addInventarioSchema,
+  updateInventarioSchema,
+  bulkInventarioSchema,
+} from "./schemas/inventory.schemas.js";
 
 const router = Router();
-const JWT_SECRET =
-  process.env.JWT_SECRET || "tu_clave_secreta_cambiar_en_produccion";
-
-// Middleware de autenticación
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({ error: "Token no proporcionado" });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: "Token inválido o expirado" });
-    }
-    req.user = user;
-    next();
-  });
-};
 
 // ========== 1. AGREGAR CARTA AL INVENTARIO ==========
-router.post("/inventario", authenticateToken, async (req, res) => {
+router.post("/inventario", authMiddleware, validate(addInventarioSchema), async (req, res) => {
   try {
     const { card_id, cantidad, precio, condicion, idioma, edicion, notas } =
       req.body;
-
-    if (!card_id) {
-      return res.status(400).json({
-        error: "El card_id es requerido",
-      });
-    }
 
     // Verificar que la carta existe
     const cardCheck = await db.query(
@@ -92,7 +72,7 @@ router.post("/inventario", authenticateToken, async (req, res) => {
 });
 
 // ========== 2. OBTENER MI INVENTARIO (del vendedor autenticado) ==========
-router.get("/inventario/mi-inventario", authenticateToken, async (req, res) => {
+router.get("/inventario/mi-inventario", authMiddleware, async (req, res) => {
   try {
     const { condicion, idioma, search, orden = "name" } = req.query;
 
@@ -319,7 +299,8 @@ router.get("/inventario/vendedor/:vendedor_id", async (req, res) => {
 // ========== 6. ACTUALIZAR CANTIDAD/PRECIO DE CARTA ==========
 router.put(
   "/inventario/:inventario_id",
-  authenticateToken,
+  authMiddleware,
+  validate(updateInventarioSchema),
   async (req, res) => {
     try {
       const { inventario_id } = req.params;
@@ -369,7 +350,7 @@ router.put(
 // ========== 7. ELIMINAR CARTA DEL INVENTARIO ==========
 router.delete(
   "/inventario/:inventario_id",
-  authenticateToken,
+  authMiddleware,
   async (req, res) => {
     try {
       const { inventario_id } = req.params;
@@ -400,17 +381,11 @@ router.delete(
 );
 
 // ========== 8. AGREGAR MÚLTIPLES CARTAS AL INVENTARIO ==========
-router.post("/inventario/bulk", authenticateToken, async (req, res) => {
+router.post("/inventario/bulk", authMiddleware, validate(bulkInventarioSchema), async (req, res) => {
   const client = await db.connect();
 
   try {
-    const { cartas } = req.body; // Array de { card_id, cantidad, precio, condicion, idioma, edicion, notas }
-
-    if (!Array.isArray(cartas) || cartas.length === 0) {
-      return res.status(400).json({
-        error: "Se requiere un array de cartas",
-      });
-    }
+    const { cartas } = req.body;
 
     await client.query("BEGIN");
 
