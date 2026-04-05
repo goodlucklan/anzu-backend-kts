@@ -6,7 +6,9 @@ const sql = new pg.Pool({
   database: process.env.PGDATABASE,
   username: process.env.PGUSER,
   password: process.env.PGPASSWORD,
-  ssl: false,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 // const sql = new pg.Pool({
 //   host: PGHOST,
