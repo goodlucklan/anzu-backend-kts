@@ -1,6 +1,6 @@
 // middleware/auth.middleware.js
 import jwt from "jsonwebtoken";
-import { JWT_CONFIG } from "../config/jwt.config";
+import { JWT_CONFIG } from "../config/jwt.config.js";
 
 export const authMiddleware = (req, res, next) => {
   try {
@@ -27,7 +27,7 @@ export const authMiddleware = (req, res, next) => {
 };
 
 export const isVendedor = (req, res, next) => {
-  if (!req.user.roles || !req.user.roles.includes("vendedor")) {
+  if (!req.user.roles?.includes("vendedor")) {
     return res.status(403).json({
       error: "Acceso denegado. Se requiere rol de vendedor",
     });
