@@ -24,7 +24,22 @@ const server = http.createServer(app);
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: (origin, callback) => {
+      const allowed = [
+        /^http:\/\/localhost:\d+$/,
+        // "https://tu-frontend.vercel.app",
+      ];
+      if (
+        !origin ||
+        allowed.some((o) =>
+          o instanceof RegExp ? o.test(origin) : o === origin,
+        )
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS bloqueado: ${origin}`));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
   }),
@@ -56,17 +71,17 @@ app.use(express.urlencoded({ extended: false }));
 app.use(generalLimiter); // aplica a todas las rutas
 
 // Limiters específicos para auth (más estrictos)
-app.use("/api/users/login",              loginLimiter);
-app.use("/api/users/register",           registerLimiter);
-app.use("/api/seller/vendedores/login",  loginLimiter);
+app.use("/api/users/login", loginLimiter);
+app.use("/api/users/register", registerLimiter);
+app.use("/api/seller/vendedores/login", loginLimiter);
 app.use("/api/seller/vendedores/registro", registerLimiter);
 
 // ── Rutas ────────────────────────────────────────────────────────────────────
-app.use("/api/users",     userRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/tournament", tournamentRoutes);
-app.use("/api/cards",     cardsRoutes);
-app.use("/api/seller",    sellerRoutes);
-app.use("/api/invetory",  inventoryRoutes);
+app.use("/api/cards", cardsRoutes);
+app.use("/api/seller", sellerRoutes);
+app.use("/api/invetory", inventoryRoutes);
 
 // ── Manejador de errores global ──────────────────────────────────────────────
 app.use((err, req, res, next) => {
