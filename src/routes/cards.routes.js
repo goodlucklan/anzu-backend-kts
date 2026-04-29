@@ -25,7 +25,7 @@ router.get("/getCards", async (req, res) => {
     await db.query("BEGIN");
 
     const dataApi = await axios.get(
-      "https://db.ygoprodeck.com/api/v7/cardinfo.php"
+      "https://db.ygoprodeck.com/api/v7/cardinfo.php",
     );
     const cardsData = dataApi.data.data;
     console.log("📦 Cartas encontradas:", dataApi.data.data.length);
@@ -96,7 +96,7 @@ router.get("/getCards", async (req, res) => {
         attributes,
         archetypes,
         ygoprodeckUrls,
-      ]
+      ],
     );
 
     // ========== 2. LIMPIAR DATOS ANTIGUOS ==========
@@ -192,7 +192,7 @@ router.get("/getCards", async (req, res) => {
         SELECT * FROM unnest($1::bigint[], $2::text[])
         ON CONFLICT (card_id, type_name) DO NOTHING
         `,
-        [cardTypesIds, cardTypesNames]
+        [cardTypesIds, cardTypesNames],
       );
     }
 
@@ -216,7 +216,7 @@ router.get("/getCards", async (req, res) => {
           printingsSetRarities,
           printingsSetRarityCodes,
           printingsSetPrices,
-        ]
+        ],
       );
     }
 
@@ -229,7 +229,7 @@ router.get("/getCards", async (req, res) => {
         SELECT * FROM unnest($1::bigint[], $2::text[])
         ON CONFLICT (card_id) DO UPDATE SET ban_ocg = EXCLUDED.ban_ocg
         `,
-        [banlistCardIds, banlistBanOcg]
+        [banlistCardIds, banlistBanOcg],
       );
     }
 
@@ -245,7 +245,7 @@ router.get("/getCards", async (req, res) => {
           $1::bigint[], $2::text[], $3::text[], $4::text[]
         )
         `,
-        [imagesCardIds, imagesUrls, imagesUrlsSmall, imagesUrlsCropped]
+        [imagesCardIds, imagesUrls, imagesUrlsSmall, imagesUrlsCropped],
       );
     }
 
@@ -270,7 +270,7 @@ router.get("/getCards", async (req, res) => {
           pricesEbay,
           pricesAmazon,
           pricesCoolstuffinc,
-        ]
+        ],
       );
     }
 
@@ -300,36 +300,39 @@ router.get("/getCards", async (req, res) => {
 
 router.get("/searchCards", async (req, res) => {
   try {
-    const { name } = req.query;
-
-    // Validar que se proporcione un nombre
+    const { name, page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
     if (!name || name.trim() === "") {
-      return res.status(400).json({
-        error: "El parámetro 'name' es requerido",
-        example: "/searchCards?name=Diabellstar",
-      });
+      return res
+        .status(400)
+        .json({ error: "El parámetro 'name' es requerido" });
     }
-
-    console.log(`🔍 Buscando cartas con nombre: "${name}"`);
-
-    // Query principal para obtener las cartas
+    // Total de cartas que matchean (sin paginar)
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM cards WHERE name ILIKE $1`,
+      [`%${name}%`],
+    );
+    const total = parseInt(countResult.rows[0].count);
+    // Query paginada
     const cardsResult = await db.query(
-      `
-      SELECT 
+      `SELECT 
         id, name, type, human_readable_card_type as "humanReadableCardType",
         frame_type as "frameType", description as desc, race, atk, def, 
         level, attribute, archetype, ygoprodeck_url
-      FROM cards
-      WHERE name ILIKE $1
-      ORDER BY name
-      `,
-      [`%${name}%`]
+       FROM cards
+       WHERE name ILIKE $1
+       ORDER BY name
+       LIMIT $2 OFFSET $3`,
+      [`%${name}%`, Number(limit), offset],
     );
 
     if (cardsResult.rows.length === 0) {
       return res.json({
         message: "No se encontraron cartas",
         data: [],
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / Number(limit)),
       });
     }
 
@@ -344,32 +347,32 @@ router.get("/searchCards", async (req, res) => {
         // card_types
         db.query(
           `SELECT card_id, type_name FROM card_types WHERE card_id = ANY($1)`,
-          [cardIds]
+          [cardIds],
         ),
         // card_printings
         db.query(
           `SELECT card_id, set_name, set_code, set_rarity, set_rarity_code, set_price
            FROM card_printings WHERE card_id = ANY($1)
            ORDER BY card_id, set_name`,
-          [cardIds]
+          [cardIds],
         ),
         // banlist_info
         db.query(
           `SELECT card_id, ban_ocg FROM banlist_info WHERE card_id = ANY($1)`,
-          [cardIds]
+          [cardIds],
         ),
         // card_images
         db.query(
           `SELECT card_id, image_url, image_url_small, image_url_cropped
            FROM card_images WHERE card_id = ANY($1)`,
-          [cardIds]
+          [cardIds],
         ),
         // card_prices
         db.query(
           `SELECT card_id, cardmarket_price, tcgplayer_price, ebay_price, 
                   amazon_price, coolstuffinc_price
            FROM card_prices WHERE card_id = ANY($1)`,
-          [cardIds]
+          [cardIds],
         ),
       ]);
 
@@ -447,6 +450,9 @@ router.get("/searchCards", async (req, res) => {
 
     res.json({
       data,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (error) {
     console.error("❌ Error al buscar cartas:", error);
