@@ -71,13 +71,19 @@ router.post("/addPlayerInTournament", async (req, res) => {
 });
 
 router.put("/upgradeResultPlayerInTournament", async (req, res) => {
-  const { konamiid, idtournament, victory, defeat, draw } = req.body;
-  await db`
-    UPDATE "listplayers"
-        SET victory = ${victory}, defeat = ${defeat}, draw = ${draw}
-        WHERE konamiid = ${konamiid} AND idtournament = ${idtournament}
-  `;
-  res.send("Update values");
+  try {
+    const { konamiid, idtournament, victory, defeat, draw } = req.body;
+    await db.query(
+      `UPDATE "listplayers"
+       SET victory = $1, defeat = $2, draw = $3
+       WHERE konamiid = $4 AND idtournament = $5`,
+      [victory, defeat, draw, konamiid, idtournament]
+    );
+    res.send("Update values");
+  } catch (error) {
+    console.error("Error al actualizar resultado:", error);
+    res.status(500).send("Error en el servidor");
+  }
 });
 
 export default router;

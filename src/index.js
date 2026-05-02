@@ -20,7 +20,6 @@ dotenv.config();
 
 const app = express();
 const PgSession = pgSession(session);
-const server = http.createServer(app);
 
 app.use(
   cors({
@@ -91,6 +90,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-server.listen(process.env.PORT || 3000, () => {
-  console.log(`Server is running on port ${process.env.PORT || 3000}`);
-});
+// ── Server bootstrap ────────────────────────────────────────────────────────
+const server = http.createServer(app);
+
+if (process.env.NODE_ENV !== "test") {
+  server.listen(process.env.PORT || 3000, () => {
+    console.log(`Server is running on port ${process.env.PORT || 3000}`);
+  });
+}
+
+export default app;
+export { server };

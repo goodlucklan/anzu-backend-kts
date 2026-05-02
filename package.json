@@ -4,7 +4,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage",
     "dev": "node --watch src/index.js",
     "start": "node --watch src/index.js"
   },
@@ -26,5 +26,9 @@
     "pg": "^8.13.3",
     "socket.io": "^4.8.1",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.2.2"
   }
 }
