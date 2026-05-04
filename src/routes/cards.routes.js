@@ -1,6 +1,10 @@
 import { Router } from "express";
 import db from "../../database/pg.sql.js";
 import axios from "axios";
+import https from "https";
+
+// Agente HTTPS que ignora verificación de cert para ygoprodeck (su cert intermedio no se propaga bien)
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 const router = Router();
 
@@ -26,6 +30,7 @@ router.get("/getCards", async (req, res) => {
 
     const dataApi = await axios.get(
       "https://db.ygoprodeck.com/api/v7/cardinfo.php",
+      { httpsAgent },
     );
     const cardsData = dataApi.data.data;
     console.log("📦 Cartas encontradas:", dataApi.data.data.length);

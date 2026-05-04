@@ -34,3 +34,19 @@ export const isVendedor = (req, res, next) => {
   }
   next();
 };
+
+export const isAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: "No autenticado",
+    });
+  }
+  const isAdminType = req.user.user_type === "admin";
+  const isAdminRole = req.user.roles?.includes("admin");
+  if (!isAdminType && !isAdminRole) {
+    return res.status(403).json({
+      error: "Acceso denegado. Se requiere rol de administrador",
+    });
+  }
+  next();
+};

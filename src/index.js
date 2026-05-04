@@ -5,6 +5,10 @@ import tournamentRoutes from "./routes/tournament.routes.js";
 import cardsRoutes from "./routes/cards.routes.js";
 import sellerRoutes from "./routes/seller.routes.js";
 import inventoryRoutes from "./routes/inventory.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import productsRoutes from "./routes/products.routes.js";
+import cartRoutes from "./routes/cart.routes.js";
+import ordersRoutes from "./routes/orders.routes.js";
 import dotenv from "dotenv";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
@@ -80,7 +84,11 @@ app.use("/api/users", userRoutes);
 app.use("/api/tournament", tournamentRoutes);
 app.use("/api/cards", cardsRoutes);
 app.use("/api/seller", sellerRoutes);
-app.use("/api/invetory", inventoryRoutes);
+app.use("/api/inventory", inventoryRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/products", productsRoutes);
+app.use("/api/cart", cartRoutes);
+app.use("/api/orders", ordersRoutes);
 
 // ── Manejador de errores global ──────────────────────────────────────────────
 app.use((err, req, res, next) => {
